@@ -1,5 +1,15 @@
 #include "../lib/dynamic.h"
 
+int allocate_error(const void *mem, char *prompt)
+{
+    if (mem == NULL)
+    {
+        printf(prompt);
+        return 1;
+    }
+    return 0;
+}
+
 Array array_init(size_t item_size, size_t initial_cap)
 {   
     return (Array)
@@ -10,7 +20,18 @@ Array array_init(size_t item_size, size_t initial_cap)
     };
 }
 
-//segmentation fault - something to do with my aproach to realloc use
+void fill_array(Array *a, size_t val)
+{   
+    int i;
+    char *temp = a->items;
+    //iterating over a->items and putting value in
+    for (i = 0; i < a->capacity; i++)
+    {   
+        memcpy(temp, &val, a->item_size);
+        temp+=a->item_size;
+    } 
+}
+
 void push_back(Array *a, size_t val)
 {   
     if (a->capacity == 0)
@@ -19,41 +40,43 @@ void push_back(Array *a, size_t val)
         a->capacity++;
         return;
     }
-    //create temporary pointer bigger than orginal by one item size
-    char *temp = malloc((a->item_size)*(a->capacity + 1));
-    //copying values to temporary pointer
-    memcpy(temp, a->items, a->capacity * a->item_size);
-    memcpy(temp+(a->item_size * a->capacity), &val, a->item_size);
-    //reallocing memory of array pointer and increasing capacity 
     a->capacity++;
+    //resizing a->items
     a->items = realloc(a->items, a->item_size*a->capacity);
-    //put the values back to original pointer
-    memcpy(a->items, temp, a->capacity * a->item_size);
-    //free memory allocated on heap for temporary pointer
-    free(temp);
+    //checking for allocation error
+    if (allocate_error(a->items, "Failed to reallocate memory for a->items using push_back()\n")) return;
+    //putting value at the end of a->items
+    memcpy(a->items + (a->item_size * (a->capacity - 1)), &val, a->item_size);
 }
 
 void insert_at(Array *a, size_t index, size_t val)
 {
     if (index >= a->capacity || index < 0)
     {
-        printf("Insertion index %d out of scope\n", index);
+        printf("Insertion index %lld out of array length\n", index);
         return;
     }
-    char *temp = a->items;
-    memcpy(temp + (a->item_size * index), &val, a->item_size);
+    //putting value at desired position
+    memcpy(a->items + (a->item_size * index), &val, a->item_size);
 }
 
-void fill_array(Array *a, size_t val)
-{   
-    int i;
-    char *temp = a->items;
-    for (i = 0; i < a->capacity; i++)
-    {   
-        memcpy(temp, &val, a->item_size);
-        temp+=a->item_size;
-    } 
+void add_at_index(Array *a, size_t index, size_t val)
+{
+    if (index >= a->capacity || index < 0)
+    {
+        printf("Index %lld out of array length\n", index);
+        return;
+    }
+    //resize a->items
+    a->items = realloc(a->items, a->item_size * (a->capacity + 1));
+    //move every element right from index by one and then add val into index
+    memcpy(a->items + (a->item_size * (index + 1)), a->items + a->item_size * index, a->item_size * (a->capacity - index));
+    memcpy(a->items + a->item_size * index, &val, a->item_size);
+    //capacity of array increased
+    a->capacity++;
 }
+
+
 
 void pop_at(Array *a, size_t index)
 {
@@ -63,28 +86,21 @@ void pop_at(Array *a, size_t index)
         printf("Index %d out of array scope\n", (int)index);
         return;
     }
-    char *head = a->items;
-    //creating new pointer for values after removing
-    char *temp = (char*)malloc(a->item_size * (a->capacity - 1));
-    //adding left from removed element and then right to temp pointer
-    memcpy(temp, head, index * a->item_size);
-    memcpy(temp+(index*a->item_size), head + (index + 1)*a->item_size, a->item_size * (a->capacity - index - 1));
-    //changing size of memory for original pointer
-    a->items = realloc(a->items, a->item_size * (a->capacity - 1));
-    //copying temp to a->items
-    memcpy(a->items, temp, a->item_size * (a->capacity - 1));
-    //freeing memory of temp pointer and decreasing capacity of array
-    free(temp);
+    //moving items from index + 1 to end one place left
+    memcpy(a->items + (a->item_size * index), a->items + (a->item_size * (index + 1)), a->item_size * (a->capacity - index - 1));
     a->capacity--;
+    //changing a->items size
+    a->items = realloc(a->items, a->item_size * a->capacity);
+    //checking for allocate error 
+    if (allocate_error(a->items, "Failed to reallocate memory for a->items using pop_back()")) return;
 }
 
 void *array_at(const Array a, size_t index)
 {   
-    char *temp = a.items;
     if (index >= a.capacity || index < 0)
     {   
         printf("Index out of Array scope\n");
         return NULL;
     }
-    return temp + (a.item_size * index);
+    return a.items + (a.item_size * index);
 }
